@@ -55,3 +55,4 @@ nunit-*.xml
 /.vs
 /ApiFaceAi/.vs/ApiFaceAi
 /ApiFaceAi/.vs/ProjectEvaluation
+/.claude

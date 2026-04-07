@@ -150,6 +150,12 @@ The test suite covers the main scenarios for both controllers using mocked AWS a
 
 ---
 
+## Frontend Angular 
+
+https://github.com/markimpdl/FrontFaceRekoginition
+
+---
+
 ## AWS Free Tier
 
 Amazon Rekognition offers **5,000 image analyses per month** free for the first 12 months — sufficient for development and demos.
