@@ -1,108 +1,162 @@
-# 🟢 AWS Rekognition Setup (Free Tier) + .NET 8 + SQL Server Configuration on Windows
+# Face Recognition API
 
-This guide explains how to create a free AWS account, configure Rekognition, install required tools, and prepare your Windows environment to run a .NET 8 project with SQL Server.
-
----
-
-## ✅ 1. Create a Free AWS Account
-
-1. Visit: [https://aws.amazon.com/free](https://aws.amazon.com/free)
-2. Click **“Create a Free Account.”**
-3. Fill in your email, password, and account details.
-4. Add billing info (credit/debit card, no charge if using Free Tier).
-5. Complete phone/SMS verification.
-6. Select **Basic Support Plan** (Free).
-7. Wait for account activation.
+A RESTful API built with **ASP.NET Core 8** that uses **Amazon Rekognition** to authenticate users by facial recognition. Users are registered with a photo, which is indexed in a Rekognition collection. Authentication is then performed by comparing a new photo against the stored faces — no passwords required.
 
 ---
 
-## ✅ 2. Enable Amazon Rekognition
+## Features
 
-1. Log in to the [AWS Console](https://console.aws.amazon.com/)
-2. Search for **"Rekognition"** and open the service.
-3. Select your region (e.g., `us-east-1`).
-
-📌 Free Tier: 5,000 images/month for 12 months.
-
----
-
-## ✅ 3. Create an IAM User
-
-1. Go to [IAM Console](https://console.aws.amazon.com/iam)
-2. Click **Users > Add Users**
-3. Username: `rekognition-user`
-4. Enable **Programmatic access**
-5. Attach policy: `AmazonRekognitionFullAccess`
-6. Create user and save **Access Key ID** and **Secret Access Key**
+- Register users with a photo — face is automatically indexed via Amazon Rekognition
+- Authenticate users by submitting a photo — matched against the face collection
+- Stores user data and photo in SQL Server via Entity Framework Core
+- Swagger UI available for easy endpoint exploration
 
 ---
 
-## ✅ 4. Install AWS CLI
+## Tech Stack
 
-1. Download from: [https://aws.amazon.com/cli/](https://aws.amazon.com/cli/)
-2. Run the installer with default options.
-3. Confirm installation:
+| Layer | Technology |
+|---|---|
+| Runtime | .NET 8 (ASP.NET Core) |
+| AI / Face Recognition | Amazon Rekognition (AWS SDK) |
+| Database | SQL Server + Entity Framework Core 8 |
+| API Docs | Swagger / OpenAPI |
+| Unit Tests | xUnit + Moq + EF Core InMemory |
 
-```bash
-aws --version
+---
+
+## Architecture Overview
+
+```
+Client (photo upload)
+       │
+       ▼
+ ASP.NET Core API
+  ├── POST /api/users/register ──► Amazon Rekognition (IndexFaces)
+  │                                       │
+  │                               Face ID returned
+  │                                       │
+  │                               SQL Server (save user + face ID)
+  │
+  └── POST /api/auth/login ────► Amazon Rekognition (SearchFacesByImage)
+                                         │
+                                 Match found → query SQL Server
+                                         │
+                                 Return user data
 ```
 
 ---
 
-## ✅ 5. Configure AWS CLI
+## API Endpoints
 
-Open Command Prompt and run:
+### Register User
+**`POST /api/users/register`** — `multipart/form-data`
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | User's full name |
+| `photo` | file | Face photo (JPG/PNG) |
+
+**Response `200 OK`:**
+```json
+{ "id": 1, "name": "John Doe" }
+```
+
+---
+
+### Authenticate via Face
+**`POST /api/auth/login`** — `multipart/form-data`
+
+| Field | Type | Description |
+|---|---|---|
+| `photo` | file | Face photo to authenticate |
+
+**Response `200 OK`:**
+```json
+{
+  "id": 1,
+  "name": "John Doe",
+  "photoBase64": "..."
+}
+```
+
+**Response `401 Unauthorized`:** No matching face found in the collection.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- [.NET 8 SDK](https://dotnet.microsoft.com/en-us/download)
+- [SQL Server](https://www.microsoft.com/en-us/sql-server/sql-server-downloads) (Developer Edition or higher)
+- [AWS Account](https://aws.amazon.com/free) with Rekognition access
+- [AWS CLI](https://aws.amazon.com/cli/) configured
+
+### 1. Configure AWS credentials
 
 ```bash
 aws configure
 ```
 
-Input your credentials:
+Enter your `Access Key ID`, `Secret Access Key`, and default region (e.g. `us-east-1`).
 
-```
-AWS Access Key ID: <your key>
-AWS Secret Access Key: <your secret>
-Default region: us-east-1
-Default output format: json
-```
+### 2. Configure the connection string
 
----
+In `appsettings.json` (or `appsettings.Development.json`):
 
-## ✅ 6. Install .NET 8 SDK
-
-1. Download from: [https://dotnet.microsoft.com/en-us/download](https://dotnet.microsoft.com/en-us/download)
-2. Select **.NET 8 SDK (64-bit)** for Windows
-3. Run the installer
-4. Verify installation:
-
-```bash
-dotnet --version
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=FaceRekognitionDb;Trusted_Connection=True;"
+  }
+}
 ```
 
-5- Install Dotnet tool
+### 3. Run migrations
+
 ```bash
 dotnet tool install --global dotnet-ef
+dotnet ef database update
 ```
 
----
+### 4. Run the API
 
-## ✅ 7. Install SQL Server
+```bash
+dotnet run
+```
 
-1. Download **SQL Server Developer Edition**:  
-   [https://www.microsoft.com/en-us/sql-server/sql-server-downloads](https://www.microsoft.com/en-us/sql-server/sql-server-downloads)
-2. Install with default settings
-3. Also install **SQL Server Management Studio (SSMS)**:  
-   [https://aka.ms/ssmsfullsetup](https://aka.ms/ssmsfullsetup)
+Swagger UI will be available at `https://localhost:{port}/swagger`.
 
 ---
-## ✅ 8. Run the migrations
-dotnet ef database update
 
+## Running Tests
 
+```bash
+dotnet test
+```
 
-## ✅ 9. Set Up Your Project
+The test suite covers the main scenarios for both controllers using mocked AWS and an in-memory database:
 
-- Ensure your `.NET 8` backend uses the correct connection string for SQL Server.
-- Ensure AWS credentials are available for Rekognition calls.
-- Use dependency injection for Rekognition clients and SQL DBContext.
+- Login with missing or empty photo
+- Login when no face match is found
+- Login when face is matched but user is not in the database
+- Login with a valid match — returns user data
+- Login when Rekognition throws an exception
+- Register with missing or empty photo
+- Register when no face is detected in the photo
+- Register with a valid photo — persists user and face ID
+- Register when the Rekognition collection doesn't exist yet — creates it automatically
 
+---
+
+## AWS Free Tier
+
+Amazon Rekognition offers **5,000 image analyses per month** free for the first 12 months — sufficient for development and demos.
+
+---
+
+## Author
+
+**Marcos Ortolani**  
+[LinkedIn](https://www.linkedin.com/in/marcosortolani) · [GitHub](https://github.com/markimpdl)
